@@ -1,0 +1,436 @@
+esphome:
+  name: kitchen-cabinet-lighting
+  friendly_name: kitchen cabinet lighting
+
+esp8266:
+  board: nodemcuv2
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "2xMkql1dhEx+JlPL7wwRLnBTz+bTFP2XrcDQw6VNxQk="
+
+ota:
+  password: "0affdbf06e6f9b0d3acaddae346f25f0"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Kitchen-Cabinet-Lighting"
+    password: "tOX53hN3YxJb"
+
+captive_portal:
+
+remote_receiver:
+  pin:
+    number: D1
+    inverted: true
+    mode:
+      input: true
+      pullup: true
+  
+
+sun:
+  latitude: 40.173568
+  longitude: -86.0225536
+
+# At least one time source is required
+time:
+  - platform: homeassistant
+
+
+web_server:
+  port: 80
+
+
+binary_sensor:   
+
+  - platform: remote_receiver
+    name: "Remote 0"
+    id: ir0
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xE916
+      # 0 key #
+ 
+
+  - platform: remote_receiver
+    name: "Remote 1"
+    id: ir1
+    internal: true 
+    nec:
+      address: 0xff00
+      command: 0xF30C
+
+  - platform: remote_receiver
+    name: "Remote 2"
+    id: ir2
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xE718  
+
+  - platform: remote_receiver
+    name: "Remote 3"
+    id: ir3
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xA15E  
+
+
+  - platform: remote_receiver
+    name: "Remote 4"
+    id: ir4
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xF708
+
+
+  - platform: remote_receiver
+    name: "Remote 5"
+    id: ir5
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xE31C
+
+
+
+  - platform: remote_receiver
+    name: "Remote 6"
+    id: ir6
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xA55A
+
+  - platform: remote_receiver
+    name: "Remote 7"
+    id: ir7
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xA55A
+
+  - platform: remote_receiver
+    name: "Remote 8"
+    id: ir8
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xA55A
+
+  - platform: remote_receiver
+    name: "Remote 9"
+    id: ir9
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xB54A
+
+
+  - platform: remote_receiver
+    name: "Remote 100+"
+    id: ir100
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xE619
+
+  - platform: remote_receiver
+    name: "Remote 200+"
+    id: ir200
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xF20D
+
+  - platform: remote_receiver
+    name: "Remote Volume -"
+    id: ir_minus
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xF807
+
+  - platform: remote_receiver
+    name: "Remote Volume +"
+    id: ir_plus
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xEA15
+
+  - platform: remote_receiver
+    name: "Remote EQ"
+    id: ir_eq
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xF609        
+
+  - platform: remote_receiver
+    name: "Remote Previus"
+    id: ir_prev
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xBB44      
+
+  - platform: remote_receiver
+    name: "Remote Next"
+    id: ir_next
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xBF40
+
+
+  - platform: remote_receiver
+    name: "Remote play/pause"
+    id: ir_play_pause
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xBC43      
+
+  - platform: remote_receiver
+    name: "Remote minus"
+    id: ir_channel_minus
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xBA45          
+
+  - platform: remote_receiver
+    name: "Remote center"
+    id: ir_channel_center
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xB946        
+
+  - platform: remote_receiver
+    name: "Remote plus"
+    id: ir_channel_plus
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xB847               
+
+
+
+  
+  - platform: template
+    id: timer
+
+  - platform: homeassistant
+    name: "motion"
+    entity_id: binary_sensor.kitchen_motion
+    id: kitchen_motion
+    on_press:
+      then:
+        - if:
+            condition:
+              and:
+                - light.is_off: white
+                - switch.is_on: auto_mode
+            then:
+              - light.turn_on: white
+              - lambda: !lambda |-
+                  id(timer).publish_state(true);
+            else:
+              - script.stop: timeout
+    on_release:
+      then:
+        - if:
+            condition:
+              - binary_sensor.is_on: timer
+            then:
+              - script.execute: timeout
+
+   
+
+sensor:
+  - platform: wifi_signal
+    name: "Wifi upper cabinets"
+    update_interval: 60s
+  - platform: uptime
+    name: "Uptime"
+
+  - platform: adc
+    pin: A0
+    name: "Kitchen Lux"
+    update_interval: 5s
+    unit_of_measurement: lx    
+    filters:     
+      - lambda: |-
+          auto r = map((x * 3.3 / 10000.0) * 2000000.0, 0, 1023, 255, 0);
+          if (r > 0) return r;
+          return 0; 
+  
+  - platform: dht
+    pin: D5
+    humidity:
+      name: "Kitchen Humidity"
+    temperature:
+      name: "Kitchen Temperature"
+      filters:
+        - calibrate_linear:
+            - 0.0 -> 0.0
+            - 26.8 -> 23.8
+    update_interval: 10s
+
+switch:
+  - platform: restart
+    name: "Kitchen Restart"
+
+  - platform: template
+    id: auto_mode
+    name: light Auto
+    icon: mdi:lightbulb-auto
+    optimistic: true
+    on_turn_off:
+      then:
+        - light.turn_off: white
+        - lambda: !lambda |-
+            id(timer).publish_state(false);  
+
+
+
+
+number:
+  - platform: template
+    id: brightness
+    name: Brightness
+    icon: mdi:alpha-b-box-outline
+    update_interval: never
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    restore_value: true
+    step: 5
+    on_value:
+      then:
+        - if:
+            condition:
+              and:
+                - light.is_on: white
+            then:
+              - script.execute: set_light            
+
+  - platform: template
+    id: light_white
+    name: Under whites
+    icon: mdi:alpha-r-box
+    update_interval: never
+    optimistic: true
+    min_value: 0
+    max_value: 255
+    restore_value: true
+    step: 1
+    on_value:
+      then:
+        - if:
+            condition:
+              and:
+                - light.is_on: white
+            then:
+              - script.execute: set_light
+ 
+
+  - platform: template
+    id: off_time
+    name: Off Time
+    icon: mdi:alpha-t-box-outline
+    update_interval: never
+    optimistic: true
+    min_value: 1
+    max_value: 20
+    restore_value: true
+    step: 1
+
+script:
+  - id: timeout
+    mode: restart
+    then:
+      - if:
+          condition:
+            - binary_sensor.is_on: timer
+          then:
+            - delay: !lambda return id(off_time).state * 60000;
+            - light.turn_off: white
+            - lambda: !lambda |-
+                id(timer).publish_state(false);    
+
+  - id: set_light
+    then:
+      - lambda: !lambda |
+          auto call = id(white).turn_on();         
+          call.set_brightness(id(brightness).state/100);
+          call.perform();              
+    
+light:
+  
+
+
+ 
+
+  - platform: rgb
+    name: "RGB Kitchen Cabinets"
+    id: rgb_upper
+    red: output_component1
+    green: output_component2
+    blue: output_component3
+    
+    effects:      
+      - random:  
+      - random: 
+          name: "Slow Random Effect" 
+          transition_length: 10s 
+          update_interval: 10s 
+      - random: 
+          name: "Fast Random Effect" 
+          transition_length: 4s 
+          update_interval: 5s
+    
+  - platform: monochromatic 
+    output: output_component4
+    name: "White_cabinets"
+    id: white
+    on_turn_on:
+      - script.execute: set_light
+  
+  
+
+   
+
+     
+# Example output entry
+output:
+
+  - platform: esp8266_pwm
+    id: output_component1
+    pin: D6
+    
+  - platform: esp8266_pwm
+    id: output_component2
+    pin: D7  
+    
+  - platform: esp8266_pwm
+    id: output_component3
+    pin: D8  
+
+  - platform: esp8266_pwm
+    id: output_component4
+    pin: D4    
+    

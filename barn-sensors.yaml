@@ -1,0 +1,153 @@
+esphome:
+  name: barn-sensors
+  friendly_name: barn_sensors
+
+esp8266:
+  board: d1_mini_lite
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "xYtcqd+jrac8zSXzZQI3sc/vtww0QK65G81vWfk8PnA="
+
+ota:
+  password: "17db90b3fe52298a12cefa4ab338d2d5"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Barn-Sensors Fallback Hotspot"
+    password: "fOTWwTJP1zHg"
+
+captive_portal:
+web_server:
+  port: 80
+
+switch:
+  - platform: template 
+    name: "Cover Switch"
+    id: cover_switch
+    internal: true
+    restore_state: false
+    turn_on_action:
+     #- text_sensor.template.publish:
+      #   id: template_text
+       #  state: !lambda 'return id(overhead_2);'
+ 
+     - homeassistant.service:
+                 service: switch.toggle
+                 data: 
+                   entity_id: 
+                    switch.overhead_door_barn_overhead 
+
+ 
+  
+  
+  - platform: gpio
+    name: 'Barn Siren'
+    id: siren  
+    pin: 
+      number: D4
+      mode:        
+        output: true
+    #inverted: true    
+    inverted: true   
+
+
+cover:
+  - platform: feedback
+    name: "Overhead"
+    id: overhead_2
+    has_built_in_endstop: true
+    max_duration: 17s
+    open_action:
+      - switch.toggle: cover_switch
+      - text_sensor.template.publish:
+         id: template_text
+         state: "Opening"      
+    open_duration: 16s
+    open_endstop: top_reed_switch
+    
+    #open_sensor: open_movement_binary_sensor
+
+    close_action:
+      - switch.toggle: cover_switch
+      - text_sensor.template.publish:
+          id: template_text
+          state: "Closing"
+    close_duration: 16s
+    close_endstop: bot_reed_switch
+    
+    #close_sensor: close_movement_binary_sensor
+
+    stop_action:
+      - switch.turn_off: cover_switch
+      - text_sensor.template.publish:
+         id: template_text
+         state: "Stopped/Idle"         
+
+
+binary_sensor:
+  - platform: gpio
+    pin: 
+      number: 1 
+      #mode: INPUT_PULLUP
+      #inverted: true
+    id: top_reed_switch
+    name: "top reed"    
+   # filters: 
+     # delayed_on: 16s
+    on_state:
+      if:
+        condition:
+           binary_sensor.is_on: top_reed_switch
+        then:
+          - text_sensor.template.publish:
+              id: template_text
+              state: "Open" 
+       
+
+   
+  - platform: gpio
+    pin: 
+      number: D5
+      mode: INPUT_PULLUP
+     # inverted: true
+    id: bot_reed_switch
+    name: "Bottom Reed"
+   # filters: 
+    #  delayed_off: 16s
+    on_state:
+      if:
+        condition:
+           binary_sensor.is_on: bot_reed_switch
+        then:
+          - text_sensor.template.publish:
+              id: template_text
+              state: "Closed"
+           
+
+
+
+  
+  
+  - platform: gpio
+    pin: 
+      number: D1 
+      mode:
+        input: true
+        pullup: true 
+      inverted: true
+    name: "Stand-up Freezer"
+    device_class: Door        
+
+text_sensor:
+  - platform: template
+    name: "Overhead Text"
+    id: template_text    

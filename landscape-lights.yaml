@@ -1,0 +1,416 @@
+esphome:
+  name: landscape-lights
+  friendly_name: landscape lights
+
+esp8266:
+  board: nodemcu
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "srrsofxY6poNAir1n5TPbgRNDIQltu4CikonI7K4h6Q="
+
+ota:
+  password: "4039f1f8dfe51e8a8aa585097e618550"
+
+wifi:
+  networks:
+  - ssid: linksys-baker
+    password: Jackson55
+  - ssid: linksys-baker_EXT
+    password: Jackson55
+  power_save_mode: none
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Landscape-Lights"
+    password: "mcIsS1NPZbH3"
+
+captive_portal:
+web_server:
+   port: 80
+
+
+
+
+    
+
+i2c:              
+  sda: 4
+  scl: 5
+  scan: true
+  id: bus_a
+
+pcf8574:
+  - id: 'pcf8574_hub'
+    address: 0x20
+    pcf8575: true
+  
+pca9685:
+  id: pca9685_1
+  frequency: 500
+  address: 0x40
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: Ctrl Box IP Address
+    ssid:
+      name: Ctrl Box Connected SSID
+    bssid:
+      name: Ctrl Box Connected BSSID
+    mac_address:
+      name: Ctrl Box Mac Address
+    scan_results:
+      name: Ctrl Box Latest Scan Results    
+
+
+  - platform: template
+    name: Uptime
+    id: uptime_human_ctrl_box
+    icon: mdi:clock-start  
+
+sensor:
+  - platform: dht
+    pin: D7
+    temperature:
+      name: "Control Box Temperature"
+    humidity:
+      name: "Control Box Humidity"
+    update_interval: 15s
+    
+  - platform: uptime #Uptime in Seconds
+    name: BarnCtrl Uptime Sensor
+    id: uptime_sensor_porch_control_box
+    update_interval: 240s
+    internal: True
+    on_raw_value:
+      then:
+        - text_sensor.template.publish:
+            id: uptime_human_ctrl_box
+            state: !lambda |-
+              int seconds = round(id(uptime_sensor_porch_control_box).raw_state);
+              int days = seconds / (24 * 3600);
+              seconds = seconds % (24 * 3600);
+              int hours = seconds / 3600;
+              seconds = seconds % 3600;
+              int minutes = seconds /  60;
+              seconds = seconds % 60;
+              return (
+                (days ? String(days) + "d " : "") +
+                (hours ? String(hours) + "h " : "") +
+                (minutes ? String(minutes) + "m " : "") +
+                (String(seconds) + "s")
+              ).c_str();
+
+   
+  - platform: wifi_signal
+    name: "WiFi Signal dB"
+    id: wifi_signal_db
+    update_interval: 300s
+    entity_category: "diagnostic"
+
+  - platform: copy 
+    source_id: wifi_signal_db
+    name: "Outside Control WiFi"
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: "Signal %"
+    entity_category: "diagnostic"
+
+  
+   
+  
+output:
+  - platform: pca9685
+    pca9685_id: 'pca9685_1'
+    id: 'led1'
+    channel: 11
+    
+  
+  - platform: pca9685
+    pca9685_id: 'pca9685_1'
+    id: 'led2'
+    channel: 9 
+    
+  
+  - platform: pca9685
+    pca9685_id: 'pca9685_1'
+    id: 'led3'
+    channel: 8
+    
+  
+  - platform: pca9685
+    pca9685_id: 'pca9685_1'
+    id: 'led4'
+    channel: 14
+   
+switch:
+
+  - platform: template    
+    id: main_valve
+    turn_on_action:
+      - homeassistant.service:
+                 service: switch.turn_on
+                 data: 
+                   entity_id: 
+                    switch.n_valve_main
+
+
+  - platform: gpio
+    name: "East Beds"
+    pin:
+      pcf8574: pcf8574_hub
+      number: 2
+      mode:
+        output: true
+      inverted: true 
+    interlock: [S2,S3,S4]
+    id: S1
+ 
+  - platform: gpio
+    name: "West Beds"
+    pin:
+      pcf8574: pcf8574_hub
+      number: 7
+      mode:
+        output: true
+      inverted: true
+    id: S2  
+    interlock: [S1,S3,S4]
+    
+  - platform: gpio
+    name: "Open valve"
+    pin:
+      pcf8574: pcf8574_hub
+      number: 3
+      mode:
+        output: true
+      inverted: true    
+    id: S3
+    interlock: [S1, S2, S4]
+    
+    
+  - platform: gpio
+    name: "Center/Arbor"
+    pin:
+      pcf8574: pcf8574_hub
+      number: 5
+      mode:
+        output: true
+      inverted: true
+    id: S4
+    interlock: [S1,S2,S3]
+    
+
+
+
+
+ 
+        
+ 
+    
+      
+      
+light:    
+  
+    
+  - platform: monochromatic
+    name: 'Bloodgood'
+    id: bloodgood
+    output: led1
+   
+    
+  - platform: monochromatic
+    name: 'Pink Lace'
+    id: pink_lace
+    output: led2
+    
+  - platform: monochromatic
+    name: 'Fire Glow'
+    id: fire_glow
+    output: led3
+   
+  - platform: monochromatic
+    name: 'Porch Accent'
+    id: porch_accent
+    output: led4
+    
+  - platform: neopixelbus
+    type: BGR
+    variant: WS2811
+    pin: D3
+    num_leds: 300
+    name: "north"  
+    id: light_n
+    effects:
+      
+      - addressable_twinkle:
+      - addressable_twinkle:
+          name: Twinkle Effect With Custom Values
+          twinkle_probability: 5%
+          progress_interval: 4ms
+          
+      - addressable_flicker:
+      - addressable_flicker:
+          name: Flicker Effect With Custom Values
+          update_interval: 16ms
+          intensity: 5%
+          
+      - random:
+      - random:
+          name: Random Effect With Custom Values
+          transition_length: 5s
+          update_interval: 7s    
+          
+      - addressable_random_twinkle:
+      - addressable_random_twinkle:
+          name: Random Twinkle Effect With Custom Values
+          twinkle_probability: 5%
+          progress_interval: 32ms    
+    
+      - flicker:
+      - flicker:
+          name: Flicker Effect2
+          alpha: 95%
+          intensity: 1.5%
+          
+      - addressable_rainbow:
+      - addressable_rainbow:
+          name: Rainbow Effect With Custom Values
+          speed: 10
+          width: 50    
+          
+      - addressable_fireworks:
+      - addressable_fireworks:
+          name: Fireworks Effect With Custom Values
+          update_interval: 32ms
+          spark_probability: 10%
+          use_random_color: false
+          fade_out_rate: 120
+
+      - addressable_color_wipe:
+      - addressable_color_wipe:
+          name: Color Wipe Red/Green
+          colors:
+            - red: 100%
+              green: 0%
+              blue: 0%
+              num_leds: 9
+            - red: 0%
+              green: 100%
+              blue: 0%
+              num_leds: 9
+          add_led_interval: 500ms
+          reverse: false    
+    
+  
+  - platform: neopixelbus
+    type: BGR
+    pin: D6
+    variant: WS2811
+    num_leds: 298
+    name: "Peak"
+    id: light_e
+    effects:
+      
+      - addressable_twinkle:
+      - addressable_twinkle:
+          name: Twinkle Effect With Custom Values
+          twinkle_probability: 5%
+          progress_interval: 4ms
+          
+      - addressable_flicker:
+      - addressable_flicker:
+          name: Flicker Effect With Custom Values
+          update_interval: 16ms
+          intensity: 5%
+          
+      - random:
+      - random:
+          name: Random Effect With Custom Values
+          transition_length: 5s
+          update_interval: 7s    
+          
+      - addressable_random_twinkle:
+      - addressable_random_twinkle:
+          name: Random Twinkle Effect With Custom Values
+          twinkle_probability: 5%
+          progress_interval: 32ms    
+    
+      - flicker:
+      - flicker:
+          name: Flicker Effect2
+          alpha: 95%
+          intensity: 1.5%
+          
+      - addressable_rainbow:
+      - addressable_rainbow:
+          name: Rainbow Effect With Custom Values
+          speed: 10
+          width: 50    
+          
+      - addressable_fireworks:
+      - addressable_fireworks:
+          name: Fireworks Effect With Custom Values
+          update_interval: 32ms
+          spark_probability: 10%
+          use_random_color: false
+          fade_out_rate: 120
+    
+  
+  - platform: neopixelbus
+    type: GRB
+    pin: D5
+    variant: WS2811
+    num_leds: 9
+    name: "Globe"    
+    id: globe 
+    effects:
+      - addressable_twinkle:
+      - addressable_twinkle:
+          name: Twinkle Effect With Custom Values
+          twinkle_probability: 5%
+          progress_interval: 4ms
+          
+      - addressable_flicker:
+      - addressable_flicker:
+          name: Flicker Effect With Custom Values
+          update_interval: 16ms
+          intensity: 5%
+          
+      - random:
+      - random:
+          name: Random Effect With Custom Values
+          transition_length: 5s
+          update_interval: 7s    
+          
+      - addressable_random_twinkle:
+      - addressable_random_twinkle:
+          name: Random Twinkle Effect With Custom Values
+          twinkle_probability: 5%
+          progress_interval: 32ms    
+    
+      - flicker:
+      - flicker:
+          name: Flicker Effect2
+          alpha: 95%
+          intensity: 1.5%
+          
+      - addressable_rainbow:
+      - addressable_rainbow:
+          name: Rainbow Effect With Custom Values
+          speed: 10
+          width: 50    
+  - platform: neopixelbus
+    type: GRB
+    pin: D4
+    variant: WS2811
+    num_leds: 1
+    
+    name: "Flood Light"  
+    id: flood_light
+    

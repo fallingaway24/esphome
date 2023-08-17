@@ -1,0 +1,181 @@
+esphome:
+  name: bedroom-sensors
+
+esp8266:
+  board: esp01_1m
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "r/Np4d4hDK7z+RgSOPbf39eQ4yq9GShHKtVa/0iyjrg="
+
+ota:
+  password: "459edb7626d70be89c5152691492ef08"
+
+wifi:
+  ssid: linksys-baker
+  password: Jackson55
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Bedroom-Sensors Fallback Hotspot"
+    password: "aovm60rD4ZNI"
+
+
+
+captive_portal:
+  
+    
+sensor:
+  - platform: dht
+   
+    pin: 5
+    temperature:
+      id: bedroom_temp
+      name: "Justin Room Temperature"
+    humidity:
+      id: bedroom_humidity
+      name: "Justin Room Humidity"
+    update_interval: 30s
+
+  - platform: absolute_humidity
+    name: Absolute Humidity
+    temperature: bedroom_temp
+    humidity: bedroom_humidity  
+    
+    
+  - platform: adc
+    pin: 17
+    name: "Bedroom Brightness"
+    unit_of_measurement: lux
+    id: bright
+    
+    filters:
+      - lambda: |-
+          return (x / 10000.0) * 20000000.0;    
+    update_interval: 10s
+    
+  - platform: wifi_signal
+    name: Bedroom WiFi
+    update_interval: 30s  
+    
+  - platform: sun
+    name: Sun Elevation
+    type: elevation
+  - platform: sun
+    name: Sun Azimuth
+    type: azimuth
+
+web_server:
+  port: 80
+
+sun:
+   latitude: 40.173568
+   longitude: -86.0225536
+  
+time:
+  - platform: homeassistant
+  
+
+    
+        
+        
+       
+climate:
+  - platform: bang_bang
+    name: "Climate Controller"
+    sensor: bedroom_temp
+    default_target_temperature_low: 20 °C
+    default_target_temperature_high: 22 °C
+
+    cool_action:      
+         - homeassistant.service:
+             service: homeassistant.turn_on
+             data:
+               entity_id: switch.fan_low  
+
+    heat_action:      
+         - homeassistant.service:
+             service: homeassistant.turn_off
+             data:
+               entity_id: switch.fan_low            
+    
+      
+    
+    idle_action:
+      - homeassistant.service:
+             service: homeassistant.turn_off
+             data:
+               entity_id: switch.fan_low  
+       
+         
+   
+  
+  
+
+text_sensor:
+  - platform: sun
+    name: Sun Next Sunrise
+    type: sunrise
+  - platform: sun
+    name: Sun Next Sunset
+    type: sunset         
+    
+binary_sensor:
+  - platform: gpio
+    pin: 14
+    name: "Bedroom Motion"
+    id: bedroom_motion
+    device_class: motion  
+   
+
+                    
+
+                
+               
+
+          
+    
+
+  - platform: gpio
+    pin: 
+      number: 12
+      inverted: true
+    name: "Bedroom Door"
+    device_class: Door   
+    
+
+  - platform: gpio
+    pin:
+      number: 13
+      mode:
+        input: true
+        pullup: true
+    name: "Bedroom/Porch Switch"
+    
+    filters:
+    - delayed_on: 10ms
+
+    on_click:
+    - min_length: 50ms
+      max_length: 350ms
+      then:
+       - homeassistant.service:
+           service: "switch.toggle"
+           data:
+             entity_id: "switch.shelly1l_84cca8a726e2"
+    - min_length: 500ms
+      max_length: 1000ms
+      then:        
+       - homeassistant.service:
+           service: "switch.toggle"
+           data:
+             entity_id: "switch.back_porch_lights"
+    
+   
+       
+    
+    

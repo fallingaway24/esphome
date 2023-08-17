@@ -1,0 +1,140 @@
+esphome:
+   name: barn-freezers-door
+
+   platform: esp8266
+   board: d1_mini
+   
+
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "Yg7CecPB1z4bOMT48b0FL44g4MwcfyPlnxEJFDLvzB8="
+
+ota:
+  password: "fcf8fa8b54ac76e5522d232ba65e9b2a"
+
+wifi:
+  manual_ip:
+    # Set this to the IP of the ESP
+    static_ip: 192.168.1.132
+    # Set this to the IP address of the router. Often ends with .1
+    gateway: 192.168.1.1
+    # The subnet of the network. 255.255.255.0 works for most home networks.
+    subnet: 255.255.255.0
+  ssid: NETGEAR_BARN
+  password: Jackson55
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Barn-Freezers-Door"
+    password: "mVc1JPbDDCa4"
+
+captive_portal:
+web_server:
+  port: 80
+
+switch:
+  - platform: template 
+    name: "Cover Switch"
+    id: cover_switch
+    internal: true
+    restore_state: false
+    turn_on_action:
+     #- text_sensor.template.publish:
+      #   id: template_text
+       #  state: !lambda 'return id(overhead_2);'
+ 
+     - homeassistant.service:
+                 service: switch.toggle
+                 data: 
+                   entity_id: 
+                    switch.barn_overhead
+
+ 
+  
+  
+  - platform: gpio
+    name: 'Barn Bell'
+    id: bell    
+    pin: 
+      number: D6
+      mode:        
+        output: true
+    inverted: true    
+    #inverted: true   
+
+
+cover:
+  - platform: feedback
+    name: "Overhead"
+    id: overhead_2
+    has_built_in_endstop: true
+    max_duration: 20s
+    open_action:
+      - switch.toggle: cover_switch
+      - text_sensor.template.publish:
+         id: template_text
+         state: "Opening"      
+    open_duration: 16s
+    open_endstop: top_reed_switch
+    
+    #open_sensor: open_movement_binary_sensor
+
+    close_action:
+      - switch.toggle: cover_switch
+      - text_sensor.template.publish:
+          id: template_text
+          state: "Closing"
+    close_duration: 16s
+    close_endstop: bot_reed_switch
+    
+    #close_sensor: close_movement_binary_sensor
+
+    stop_action:
+      - switch.toggle: cover_switch
+      - text_sensor.template.publish:
+         id: template_text
+         state: "Stopped/Idle"         
+
+
+binary_sensor:
+  - platform: gpio
+    pin: 
+      number: D5
+      #mode: INPUT_PULLUP
+      #inverted: true
+    id: top_reed_switch
+    name: "top reed"    
+   # filters: 
+     # delayed_on: 16s
+   
+  - platform: gpio
+    pin: 
+      number: D4
+      mode: INPUT_PULLUP
+     # inverted: true
+    id: bot_reed_switch
+    name: "Bottom Reed"
+   # filters: 
+    #  delayed_off: 16s
+  
+  
+  - platform: gpio
+    pin: 
+      number: D1 
+      mode:
+        input: true
+        pullup: true 
+      inverted: true
+    name: "Stand-up Freezer"
+    device_class: Door        
+
+text_sensor:
+  - platform: template
+    name: "Overhead Text"
+    id: template_text
+    

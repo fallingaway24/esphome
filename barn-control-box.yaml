@@ -1,0 +1,884 @@
+esphome:
+  name: barn-control-box
+  friendly_name: barn control box
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "PLJD1JAHrWZEta1ttiG7yENyg4gJcwFJWJJ34SNHtqY="
+
+ota:
+  password: "e4a9ffe87edcb2294bb5064181b28879"
+
+wifi:
+  ssid: linksys-baker
+  password: Jackson55
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Barn-Control-Box"
+    password: "YHDOqYGMYyb6"
+  power_save_mode: none 
+
+captive_portal:
+
+sun:
+  latitude: 40.173568
+  longitude: -86.0225536
+
+time:
+  - platform: sntp
+    timezone: America/Indianapolis
+    id: outside
+
+web_server:
+  port: 80
+
+i2c:              
+  sda: 21
+  scl: 18
+  scan: true
+  id: bus_a
+
+output:
+  - platform: ledc
+    pin: GPIO19
+    id: barn_led1
+
+  - platform: ledc
+    pin: GPIO4
+    id: barn_led2  
+
+
+light:
+  - platform: monochromatic
+    output: barn_led1
+    name: "Barn Bench LED"
+    id: barnLed1
+
+  - platform: monochromatic
+    output: barn_led2
+    name: "Barn Upper Bench LED"
+    id: barnLed2
+
+select:
+  - platform: template
+    id: barn_fan_speed_select
+    name: Barn Bench Fan Speed
+    options:
+     - ''
+     - "Off"
+     - "Speed 1"
+     - "Speed 2"
+     - "Speed 3"
+     - "Speed 4"
+
+    optimistic: true
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: BarnCtrl IP Address
+    ssid:
+      name: BarnCtrl Connected SSID
+    bssid:
+      name: BarnCtrl Connected BSSID
+    mac_address:
+      name: BarnCtrl Mac Address
+    scan_results:
+      name: BarnCtrl Latest Scan Results    
+
+
+  - platform: template
+    name: Uptime
+    id: uptime_human
+    icon: mdi:clock-start
+
+sensor:
+
+  - platform: uptime #Uptime in Seconds
+    name: BarnCtrl Uptime Sensor
+    id: uptime_sensor
+    update_interval: 240s
+    internal: True
+    on_raw_value:
+      then:
+        - text_sensor.template.publish:
+            id: uptime_human
+            state: !lambda |-
+              int seconds = round(id(uptime_sensor).raw_state);
+              int days = seconds / (24 * 3600);
+              seconds = seconds % (24 * 3600);
+              int hours = seconds / 3600;
+              seconds = seconds % 3600;
+              int minutes = seconds /  60;
+              seconds = seconds % 60;
+              return (
+                (days ? String(days) + "d " : "") +
+                (hours ? String(hours) + "h " : "") +
+                (minutes ? String(minutes) + "m " : "") +
+                (String(seconds) + "s")
+              ).c_str();
+
+   
+  - platform: wifi_signal
+    name: "WiFi Signal dB"
+    id: wifi_signal_db
+    update_interval: 300s
+    entity_category: "diagnostic"
+
+  - platform: copy 
+    source_id: wifi_signal_db
+    name: "Barn Control WiFi"
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: "Signal %"
+    entity_category: "diagnostic"
+
+
+  - platform: dht
+    pin: 26
+    model: DHT11
+    temperature:   
+      filters: 
+       - lambda: return x * (9.0/5.0) + 32.0;
+      name: "Barn Temperature"    
+      unit_of_measurement: "°F"
+    humidity:
+      name: "Barn Humidity"
+    update_interval: 300s
+
+ 
+  - platform: adc
+    pin: 34
+    name: "Barn Gas Sensor"
+    update_interval: 300s
+    filters:
+      - multiply: 100
+    unit_of_measurement: "%"
+    icon: "mdi:percent"   
+
+  - platform: rotary_encoder
+    name: "contrl plate"
+    min_value: 0.0
+    max_value: 100.0
+    id: my_rotary_encoder
+    publish_initial_value: true
+    restore_mode:
+       ALWAYS_ZERO        
+    on_value:
+      then:       
+        # Turn Fan Off
+        - if:   
+            condition:
+              or:
+                - switch.is_off: fanspeed
+                - lambda: 'return id(my_rotary_encoder).state == 0.0;'                
+            then: 
+             - delay: 1s
+             - switch.turn_off: speed1
+             - switch.turn_off: speed2
+             - switch.turn_off: speed3
+             - switch.turn_off: speed4             
+            else:
+              - if:
+                  condition:
+                    and:
+                      - switch.is_on: fanspeed
+                      - lambda: 'return (id(my_rotary_encoder).state > 0.0 && id(my_rotary_encoder).state < 5.0);'                
+                  then: 
+                   - delay: 1s 
+                   - switch.turn_on: speed1
+                   - switch.turn_off: speed2
+                   - switch.turn_off: speed3
+                   - switch.turn_off: speed4  
+
+        
+        # Fan Speed 1
+   
+                
+               
+        # Fan Speed 2   
+        - if:
+            condition:
+              and:     
+                - switch.is_on: fanspeed
+                - lambda: 'return (id(my_rotary_encoder).state > 5.0 && id(my_rotary_encoder).state < 10.0);'
+            then:
+             - delay: 1s 
+             - switch.turn_off: speed1
+             - switch.turn_off: speed4
+             - switch.turn_off: speed3
+             - switch.turn_on: speed2
+     
+        # Fan Speed 3
+        - if:
+            condition:
+              and:     
+                - switch.is_on: fanspeed
+                - lambda: 'return (id(my_rotary_encoder).state > 10.0 && id(my_rotary_encoder).state < 15.0);'
+            then:
+             - delay: 1s 
+             - switch.turn_off: speed2
+             - switch.turn_off: speed4
+             - switch.turn_off: speed1
+             - switch.turn_on: speed3
+
+        # Fan Speed 4
+        - if:
+            condition:
+              and:     
+                - switch.is_on: fanspeed
+                - lambda: 'return (id(my_rotary_encoder).state > 15.0 && id(my_rotary_encoder).state < 20.0);'
+            then:
+             - delay: 1s 
+             - switch.turn_off: speed3
+             - switch.turn_off: speed2
+             - switch.turn_off: speed1
+             - switch.turn_on: speed4    
+      
+    
+    pin_a: 
+      number: 27
+      inverted: true
+      mode:
+        input: true
+        pullup: true     
+
+    pin_b: 
+      number: 23
+      inverted: true
+      mode:
+        input: true
+        pullup: true      
+
+pcf8574:
+  - id: 'pcf8574_hub'
+    address: 0x20
+    pcf8575: true
+
+remote_receiver:
+  pin:
+    number: GPIO36
+    inverted: true
+    mode:
+      input: true
+    
+
+
+binary_sensor:
+
+  - platform: remote_receiver
+    name: "On"
+    id: irON
+    nec:
+      address: 0xff00
+      command: 0xFE01 
+    internal: true  
+    on_press:
+      then:
+        - light.turn_on: 
+           id: barnLed1
+           brightness: 100%
+        - light.turn_on:
+           id: barnLed2
+           brightness: 100%
+
+  - platform: remote_receiver
+    name: "Off"
+    id: irOFF
+    nec:
+      address: 0xff00
+      command: 0xFF00 
+    internal: true     
+    on_press:
+      then:
+        - light.turn_off: 
+           id: barnLed1
+          
+        - light.turn_off:
+           id: barnLed2
+          
+
+  - platform: remote_receiver
+    name: "Remote + "
+    id: irPlus
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xF30C    
+    on_press:
+      then:  
+        - if:
+            condition:                            
+              - switch.is_off: fanspeed                                
+            then:
+              - switch.turn_on: fanspeed             
+              - switch.turn_on: speed1
+              - delay: 250ms       
+            else:
+              - if:              
+                  condition:
+                    and:
+                     - switch.is_on: fanspeed  
+                     - switch.is_on: speed1
+                  then:              
+                     - delay: 100ms
+                     - switch.turn_on: speed2            
+        - if:
+            condition:
+              and:
+                - switch.is_on: fanspeed
+                - switch.is_on: speed2
+            then:
+                - switch.turn_on: speed3
+
+        - if:
+            condition:
+              and:
+                - switch.is_on: fanspeed  
+                - switch.is_on: speed2
+            then:             
+              - delay: 100ms
+              - switch.turn_on: speed3    
+        - if:
+            condition:
+              and:
+                - switch.is_on: fanspeed  
+                - switch.is_on: speed3
+            then:              
+              - delay: 100ms
+              - switch.turn_on: speed4
+
+        - if:
+            condition:
+              and:
+                - switch.is_on: fanspeed  
+                - switch.is_on: speed4
+            then:
+              - switch.turn_off: speed4
+              - switch.turn_off: fanspeed 
+
+            
+
+  - platform: remote_receiver
+    name: "Remote - "
+    id: irMinus
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xF609   
+    on_press:
+      then:  
+        - if:
+            condition:                                        
+              - switch.is_on: fanspeed    
+                                         
+            then:
+              - if:
+                  condition:
+                    switch.is_on: speed4
+                  then: 
+                    - switch.turn_on: speed3                    
+              
+            else:
+              - if:              
+                  condition:                     
+                     - switch.is_on: speed3
+                  then:                         
+                     - switch.turn_on: speed2            
+        - if:
+            condition:               
+                - switch.is_on: speed2
+            then:
+                - switch.turn_on: speed1
+
+            else:                
+                 
+                  - switch.turn_off: speed1  
+                  - switch.turn_off: fanspeed
+       
+
+
+
+  - platform: remote_receiver
+    name: "10%"
+    id: ir10Pcnt
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xF50A
+    on_press:
+      then:
+        - light.turn_on: 
+           id: barnLed1
+           brightness: 25%
+        - light.turn_on:
+           id: barnLed2
+           brightness: 25%
+      
+
+  - platform: remote_receiver
+    name: "40%"
+    id: ir40pcnt
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xEA15  
+    on_press:
+      then:
+        - light.turn_on: 
+           id: barnLed1
+           brightness: 40%
+        - light.turn_on:
+           id: barnLed2
+           brightness: 40%     
+
+  - platform: remote_receiver
+    name: "80%"
+    id: ir80Pcnt
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xF20D 
+    on_press:
+      then:
+        - light.turn_on: 
+           id: barnLed1
+           brightness: 80%
+        - light.turn_on:
+           id: barnLed2
+           brightness: 80%
+     
+
+  - platform: remote_receiver
+    name: "100%"
+    id: ir100Pcnt
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xE916
+    on_press:
+      then:
+        - light.turn_on: 
+           id: barnLed1
+           brightness: 100%
+        - light.turn_on:
+           id: barnLed2
+           brightness: 100%
+    
+
+  - platform: remote_receiver
+    name: "10 minutes"
+    id: ir10min
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xF10E          
+
+  - platform: remote_receiver
+    name: "30 minutes"
+    id: ir30min
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xEB14       
+
+  - platform: remote_receiver
+    name: "60 minutes"
+    id: ir60min
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xF906       
+
+  - platform: remote_receiver
+    name: "120 minutes"
+    id: ir120min
+    internal: true
+    nec:
+      address: 0xff00
+      command: 0xF708                    
+
+
+  - platform: status
+    name: "Barn Control"
+  
+  - platform: gpio
+    pin: 
+      number: 22
+    device_class: motion
+    id: barnMotion
+    name: 'bench motion'
+    on_press:
+      if:
+        condition:
+          for:
+            time: 1min
+            condition:
+              binary_sensor.is_off: barnMotion
+        then:
+         - light.turn_off: barnLed1
+         - light.turn_off: barnLed2
+
+    
+  - platform: gpio
+    name: "Barn Sound"
+    pin:            
+      number: 5
+      mode:
+        input: true        
+      inverted: false 
+  
+
+  - platform: gpio #CORRECT
+    name: "Green"
+    pin:
+      pcf8574: pcf8574_hub      
+      number: 7
+      mode:
+        input: true        
+      inverted: true    
+    on_press:
+      then:
+       - homeassistant.service:
+          service: "switch.toggle"
+          data:
+            entity_id: "switch.shelly_1l"
+      
+
+  - platform: gpio #CORRECT
+    name: "Blue"
+    id: Ovr_head_button
+    pin:
+      pcf8574: pcf8574_hub      
+      number: 5
+      mode:
+        input: true        
+      inverted: true  
+    on_press:
+      then:
+        - homeassistant.service:
+                 service: homeassistant.toggle
+                 data: 
+                   entity_id: cover.barn_sensors_overhead
+                    
+
+
+
+    
+
+  #Correct
+  - platform: gpio
+    name: "Yellow"
+    pin:
+      pcf8574: pcf8574_hub      
+      number: 4
+      mode:
+        input: true        
+      inverted: true  
+    on_press:
+      then:  
+        - if:
+            condition:                            
+              - switch.is_off: fanspeed                                
+            then:
+              - switch.turn_on: fanspeed             
+              - switch.turn_on: speed1
+              - delay: 250ms       
+            else:
+              - if:              
+                  condition:
+                    and:
+                     - switch.is_on: fanspeed  
+                     - switch.is_on: speed1
+                  then:              
+                     - delay: 100ms
+                     - switch.turn_on: speed2            
+        - if:
+            condition:
+              and:
+                - switch.is_on: fanspeed
+                - switch.is_on: speed2
+            then:
+                - switch.turn_on: speed3
+
+        - if:
+            condition:
+              and:
+                - switch.is_on: fanspeed  
+                - switch.is_on: speed2
+            then:             
+              - delay: 100ms
+              - switch.turn_on: speed3    
+        - if:
+            condition:
+              and:
+                - switch.is_on: fanspeed  
+                - switch.is_on: speed3
+            then:              
+              - delay: 100ms
+              - switch.turn_on: speed4
+
+        - if:
+            condition:
+              and:
+                - switch.is_on: fanspeed  
+                - switch.is_on: speed4
+            then:
+              - switch.turn_off: speed4
+              - switch.turn_off: fanspeed 
+    
+
+
+  - platform: gpio  ## CORRECT
+    name: "PCF8574 Pin #37"
+    pin:
+      pcf8574: pcf8574_hub      
+      number: 6
+      mode:
+        input: true        
+      inverted: true  
+    on_press:
+      then:
+        - if:
+            condition:
+             - switch.is_on: StoveFanRelay
+            then:
+             - switch.turn_off: StoveFanRelay
+            else:
+              - switch.turn_on: StoveFanRelay 
+      
+                    
+
+
+   
+  - platform: gpio  ##############################################################
+    name: "On/Off Switch"
+    pin:
+      pcf8574: pcf8574_hub      
+      number: 1
+      mode:
+        input: true        
+      inverted: false    
+    on_state:
+      if:
+        condition:
+          or:
+            - light.is_off: 
+                id: barnLed1
+          
+            - light.is_off:
+                id: barnLed2
+        then:
+          - light.turn_on:
+              id: barnLed1        
+          
+          - light.turn_on:
+              id: barnLed2
+
+        else:
+          - light.turn_off:
+              id: barnLed1
+          
+          - light.turn_off:
+              id: barnLed2    
+
+
+
+button:
+  - platform: factory_reset
+    name: Restart with Factory Default Settings
+
+switch:
+
+  - platform: gpio
+    name: ""
+    id: encoder_switch
+    pin:
+      pcf8574: pcf8574_hub      
+      number: 2
+      mode:
+        input: true        
+      inverted: true  
+    on_turn_on:
+      - switch.turn_on:
+          id: fanspeed
+    on_turn_off:
+      - switch.turn_off:
+          id: fanspeed      
+
+  - platform: template
+    id: covertoggle
+    optimistic: True
+    name: covertoggle
+    #internal: True
+    on_turn_on:
+      then:
+        - homeassistant.service:
+                 service: homeassistant.toggle
+                 data: 
+                   entity_id: cover.barn_sensors_overhead
+  - platform: template
+    id: green1
+    optimistic: True
+    internal: True
+    on_turn_on:
+     - light.turn_on:
+         id: barnLed1
+         brightness: !lambda |-
+          return id(my_rotary_encoder).state / 100.0;     
+     - delay: 4s
+     - switch.turn_off: green1
+
+  - platform: template
+    id: green2
+    optimistic: True
+    internal: True
+    on_turn_on:
+     - light.turn_on:
+         id: barnLed2
+         brightness: !lambda |-
+          return id(my_rotary_encoder).state / 100.0;     
+     - delay: 4s
+     - switch.turn_off: green2
+     
+
+  - platform: template
+    id: fanspeed
+    optimistic: True
+    internal: True
+    #turn_on_action:
+      
+      
+
+  - platform: template
+    id: fanOff
+    optimistic: True
+    turn_on_action:
+      
+      - switch.turn_off: fanspeed  
+      - sensor.rotary_encoder.set_value:
+           id: my_rotary_encoder
+           value: 0  
+
+
+
+
+
+
+
+  - platform: restart
+    name: "Barn Control Restart"
+    icon: "mdi:restart"
+  
+  - platform: gpio
+    name: "Speed 4"
+    pin:
+      #pcf8574: pcf8574_hub      
+      number: 33
+      mode:
+        output: true
+      inverted: true
+    interlock: [speed2, speed3, speed1]
+    id: speed4
+    interlock_wait_time: 500ms
+    on_turn_on:
+     - select.set:
+         id: barn_fan_speed_select
+         option: "Speed 4"
+
+
+  - platform: gpio
+    name: "Speed 2"
+    pin:
+      #pcf8574: pcf8574_hub      
+      number: 32
+      mode:
+        output: true
+      inverted: true
+    interlock: [speed1, speed3, speed4]
+    id: speed2
+    interlock_wait_time: 500ms
+    on_turn_on:
+     - select.set:
+         id: barn_fan_speed_select
+         option: "Speed 2"
+
+
+  - platform: gpio
+    name: "Speed 3"
+    pin:
+      #pcf8574: pcf8574_hub      
+      number: 25
+      mode:
+        output: true
+      inverted: true
+    id: speed3
+    interlock: [speed1, speed2, speed4]
+    interlock_wait_time: 500ms
+    on_turn_on:
+     - select.set:
+         id: barn_fan_speed_select
+         option: "Speed 3"
+
+  - platform: gpio
+    name: "Speed 1"
+    pin:
+      #pcf8574: pcf8574_hub      
+      number: 13
+      mode:
+        output: true
+      inverted: true
+    id: speed1
+    interlock: [speed2, speed3, speed4]
+    interlock_wait_time: 500ms
+    on_turn_on:
+     - select.set:
+         id: barn_fan_speed_select
+         option: "Speed 1"
+
+  - platform: gpio
+    name: "relay5"
+    pin:
+      #Green Wire in Green/Red pair 
+      number: 16
+      mode:
+        output: true
+      inverted: true   
+
+  - platform: gpio
+    name: "Stove Fan"
+    id: StoveFanRelay
+    pin:
+      # Red Wire in Green/Red pair    
+      number: 17
+      mode:
+        output: true
+      inverted: true   
+  
+      
+        
+        
+
+
+  
+  
+
+
+#TOP SIDE is OPPOSITE of I2c pins && Top left to Bottom Left are as follows.
+#10,11,13,15,VDD,GND,16,12,17 (10,11,13) have 10k pullup to 5v external.
+
+#Top Right to Bottom Right are as follows.
+#7,5,3,1,0,02,6,4,12. (7,5,3) have 10k pullup to 5v external.
+
+ 
+
+    

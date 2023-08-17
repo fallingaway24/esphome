@@ -1,0 +1,167 @@
+esphome:
+  name: door-bell
+
+esp8266:
+  board: d1_mini
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "6xmvqzaJpnNJZ0xXq7CmTlN3ZGs+jg96B+BwpkcBMgw="
+
+ota:
+  password: "f4d7b8bc7d0d5eebab5cdfbb026de57e"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Door-Bell Fallback Hotspot"
+    password: "2T8NwkKqkI13"
+
+captive_portal:
+
+web_server:
+  port: 80
+
+sun:
+   latitude: 40.173568
+   longitude: -86.0225536
+   on_sunset:
+    light.turn_on:
+      id: blue_accent
+   on_sunrise:
+    light.turn_off:
+      id: blue_accent   
+  
+time:
+  - platform: homeassistant
+  
+sensor:
+  - platform: sun
+    name: Sun Elevation
+    type: elevation
+  - platform: sun
+    name: Sun Azimuth
+    type: azimuth
+    
+  
+  - platform: wifi_signal
+    name: "WiFi Signal door bell"
+    update_interval: 60s  
+text_sensor:
+  - platform: sun
+    name: Sun Next Sunrise
+    type: sunrise
+  - platform: sun
+    name: Sun Next Sunset
+    type: sunset
+    
+light:
+ 
+  - platform: neopixelbus
+    type: RGB
+    variant: WS2811
+    pin: D2
+    num_leds: 100
+    name: "Porch LED strip"  
+    effects: 
+    # Use default parameters: 
+      - random: # Customize parameters 
+      - random: 
+          name: "My Slow Random Effect" 
+          transition_length: 10s 
+          update_interval: 10s 
+      - random: 
+          name: "My Fast Random Effect" 
+          transition_length: 4s 
+          update_interval: 5s
+
+    
+  - platform: monochromatic
+    output: output_component1
+    name: "Door white"
+    
+  - platform: monochromatic
+    output: blue
+    name: "Blue Accent"
+    id: blue_accent
+  
+
+  
+output:
+  - platform: esp8266_pwm
+    id: output_component1
+    pin: D6
+    
+  - platform: esp8266_pwm
+    id: blue
+    pin: D4
+  
+binary_sensor:
+  - platform: gpio
+    pin: 
+      number: D5
+      
+    device_class: motion    
+    name: "Door Bell Motion"
+   
+  
+  - platform: gpio
+    pin: 
+      number: GPIO1
+      mode:
+        input: true
+        pullup: true
+    name: "Door Bell Button"
+    on_press:
+      - if:         
+           condition:
+            - sun.is_below_horizon:
+           then:
+           - homeassistant.service:
+               service: homeassistant.turn_on
+               data:
+                 entity_id: light.door_white
+           - delay: 20s
+           -  homeassistant.service:
+               service: homeassistant.turn_off
+               data:
+                 entity_id: light.door_white
+            
+           
+           
+
+      
+
+                   
+
+
+    
+  
+  
+  - platform: gpio
+    pin: 
+      number: D7
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    name: "Porch Door reed"  
+    device_class: door
+
+switch:
+  - platform: gpio
+    name: "Relay"
+    pin: 
+      number: GPIO1
+      mode:
+        output: true    
+    inverted: true
+    
+    
